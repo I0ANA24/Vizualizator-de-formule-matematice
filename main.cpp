@@ -325,7 +325,7 @@ void calculeazaDimensiuni(NodArbore* nod) {
     // 1. frunza (numar sau variabila)
     if (nod->stanga == NULL && nod->dreapta == NULL) {
         nod->latime = textwidth(nod->info);
-        nod->inaltime = textwidth(nod->info);
+        nod->inaltime = textheight(nod->info);
     }
 
     // 2. operator unar/binar (+, -, *) - afisare liniara
@@ -338,13 +338,125 @@ void calculeazaDimensiuni(NodArbore* nod) {
         int wOp = textwidth(nod->info);
 
         nod->latime = wSt + wOp + wDr + 2 * SPATIU_OPERATOR;
-        nod-> inaltime = max(hSt, hDr);
+        nod->inaltime = max(hSt, hDr);
     }
 
     // 3. fractie (/) - afisare verticala
     else if (nod->info[0] == '/') {
+        int wSt = nod->stanga->latime;
+        int wDr = nod->dreapta->latime;
 
+        nod->latime = max(wSt, wDr) + 10;
+        nod->inaltime = nod->stanga->inaltime + nod->dreapta->inaltime + 10;
     }
+
+    // 4. putere (^)
+    else if (nod->info[0] == '^') {
+        int wBaza = nod->stanga->latime;
+        int wExp = nod->dreapta->latime;
+
+        nod->latime = wBaza + wExp;
+        nod->inaltime = nod->stanga->inaltime + (nod->dreapta->inaltime / 2);
+    }
+
+    // 5. functie (sin, cos, etc)
+    else if (nod->tip == TIP_FUNCTIE) {
+        int wNume = textwidth(nod->info);
+        int wArg = nod->dreapta->latime;
+        
+        nod->latime = wNume + wArg + 20; // +20 pentru paranteze
+        nod->inaltime = max(textheight("A"), nod->dreapta->inaltime);
+    }
+}
+
+// Functie pentru desenarea arborelui (preordine, de sus in jos)
+// (x, y) reprezinta punctul de centru al zonei de desenare
+
+void deseneazaRecursiv(NodArbore* nod, int x, int y) {
+    if (nod == NULL) return;
+
+    settextstyle(SANS_SERIF_FONT, HORIZ_DIR, MARIME_FONT);
+    setcolor(WHITE);
+
+    // 1. frunza (numar sau variabila)
+    if (nod->stanga == NULL && nod->dreapta == NULL) {
+        // outtextxy deseneaza de la coltul stanga sus, deci ajustam coordonatele
+        outtextxy(x - nod->latime / 2, y - nod->latime / 2, nod->info);
+    }
+
+    // 2. operator unar/binar (+, -, *) - afisare liniara
+    else if (nod->info[0] == '+' || nod->info[0] == '-' || nod->info[0] == '*') {
+        // desenam operatorul la mijloc
+        //outtextxy(x - textwidth(nod->info) / 2, y - textheight(nod->info) / 2, nod->info);
+        //outtextxy(x - textwidth(nod->info) / 2, y - textheight("+") / 5, nod->info);
+        outtextxy(x - textwidth(nod->info) / 2, y - 5, nod->info);
+
+        // calculam pozitiile fiilor
+        int wSt = (nod->stanga) ? nod->stanga->latime : 0;
+        int wDr = (nod->dreapta) ? nod->dreapta->latime : 0;
+        int wOp = textwidth(nod->info);
+
+        // x-ul pentru stanga: scadem jumatate din operator si jumatate din latimea stanga
+        if (nod->stanga)
+            deseneazaRecursiv(nod->stanga, x - wOp / 2 - SPATIU_OPERATOR - wSt / 2, y);
+
+        // x-ul pentru dreapta
+        if (nod->dreapta)
+            deseneazaRecursiv(nod->dreapta, x + wOp / 2 + SPATIU_OPERATOR + wDr / 2, y);
+    }
+
+
+    // 3. fractie (/) - afisare verticala
+    else if (nod->info[0] == '/') {
+        // desenam linia de fractie
+        int lungimeLinie = nod->latime;
+        //line(x - lungimeLinie / 2, y + textheight("+") / 5, x + lungimeLinie / 2, y + textheight("+") / 5);
+        line(x - lungimeLinie / 2, y + 7, x + lungimeLinie / 2, y + 7);
+
+        // desenam numaratorul
+        int hSt = nod->stanga->inaltime;
+        deseneazaRecursiv(nod->stanga, x, y - hSt / 2 - 5);
+
+        // 3. desenam numitorul
+        int hDr = nod->dreapta->inaltime;
+        deseneazaRecursiv(nod->dreapta, x, y + hDr / 2 + 5);
+    }
+
+
+    // 4. putere (^)
+    else if (nod->info[0] == '^') {
+        int wBaza = nod->stanga->latime;
+        int wExp = nod->dreapta->latime;
+
+        // desenam baza putin mai la stanga
+        deseneazaRecursiv(nod->stanga, x - wExp / 2, y + 10);
+
+        // desenam exponentul mai sus si mai mic
+        settextstyle(SANS_SERIF_FONT, HORIZ_DIR, MARIME_FONT - 1);
+        deseneazaRecursiv(nod->dreapta, x + wBaza / 2, y - 15);
+        settextstyle(SANS_SERIF_FONT, HORIZ_DIR, MARIME_FONT); // revenim la font normal
+    }
+
+
+    // 5. functie (sin, cos, etc)
+    else if (nod->tip == TIP_FUNCTIE) {
+        int wNume = textwidth(nod->info);
+        int wArg = nod->dreapta->latime;
+
+        // scriem numele functiei (ex: sin) la stanga
+        int xStart = x - nod->latime / 2;
+        outtextxy(xStart, y - textheight("A") / 2, nod->info);
+
+        // desenam paranteza deschisa '('
+        outtextxy(xStart + wNume, y - textheight("A") / 2, "(");
+
+        // desenam argumentul recursiv
+        deseneazaRecursiv(nod->dreapta, xStart + wNume + 10 + wArg / 2, y);
+
+        // desenam paranteza inchisa ')'
+        outtextxy(xStart + wNume + 10 + wArg + 5, y - textheight("A") / 2, ")");
+    }
+
 }
 
 int main() {
@@ -365,7 +477,16 @@ int main() {
         afiseazaArbore(radacina, 0);
 
         // --- Partea Grafica ---
+        initwindow(1200, 600, "Vizualizator de formule matematice");
+        settextstyle(SANS_SERIF_FONT, HORIZ_DIR, MARIME_FONT);
 
+        calculeazaDimensiuni(radacina);
+
+        outtextxy(50, 50, "Expresia randata grafic: ");
+        deseneazaRecursiv(radacina, 600, 300); // in centrul ecranului
+
+        getch(); // asteptam apasarea unei taste pentru a inchide
+        closegraph();
         
     }
     else {
