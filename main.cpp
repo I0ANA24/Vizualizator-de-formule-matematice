@@ -3,6 +3,8 @@
 #include <fstream>
 #include <cstring> // pentru strcpy, strlen, strcmp
 #include <cctype>  // pentru isdigit, isalpha
+#include "graphics.h"
+#include "winbgim.h"
 using namespace std;
 
 ifstream fin("expresie.in");
@@ -17,6 +19,11 @@ ofstream fout("expresie.out");
 #define TIP_PARANTEZA_ST 5  // ex: (
 #define TIP_PARANTEZA_DR 6  // ex: )
 
+// cateva constante pentru grafica
+#define SPATIU_OPERATOR 10  // spatiul in pixeli intre operatori si operanzi
+#define INALTIME_TEXT 20    // inaltimea aproximativa a textului
+#define MARIME_FONT 3      // marimea fontului
+
 
 struct Token {
     char text[50]; // textul efectiv sin sau 3.26
@@ -29,6 +36,10 @@ struct NodArbore {
     int tip;             // ca sa stim cum il desenam
     NodArbore* stanga;
     NodArbore* dreapta;
+
+	// dimensiunile nodului pentru desenare
+    int latime;
+    int inaltime;
 };
 
 Token listaTokeni[100]; // vectorul de tokeni
@@ -246,7 +257,7 @@ NodArbore* construiesteArbore(int st, int dr) {
 
     if (pozitieOperator != -1) {
         NodArbore* radacina = nodNou(listaTokeni[pozitieOperator]);
-        if (pozitieOperator == st) { // ptoperator unar
+        if (pozitieOperator == st) { // pt operator unar
             radacina->stanga = NULL;
             radacina->dreapta = construiesteArbore(st + 1, dr);
         }
@@ -295,6 +306,47 @@ void afiseazaArbore(NodArbore* r, int nivel) {
     afiseazaArbore(r->stanga, nivel + 1);
 }
 
+int getLatimeText(char* text) {
+    return textwidth(text);
+}
+
+// Functie pentru calcularea dimensiunilor textului din fiecare nod
+// Postordine, de jos in sus
+void calculeazaDimensiuni(NodArbore* nod) {
+    if(nod == NULL) return;
+
+    calculeazaDimensiuni(nod->stanga);
+    calculeazaDimensiuni(nod->dreapta);
+
+    settextstyle(SANS_SERIF_FONT, HORIZ_DIR, MARIME_FONT);
+
+    // calculam dimensiunea nodului curent in functie de tip
+
+    // 1. frunza (numar sau variabila)
+    if (nod->stanga == NULL && nod->dreapta == NULL) {
+        nod->latime = textwidth(nod->info);
+        nod->inaltime = textwidth(nod->info);
+    }
+
+    // 2. operator unar/binar (+, -, *) - afisare liniara
+    else if (nod->info[0] == '+' || nod->info[0] == '-' || nod->info[0] == '*') {
+        int wSt = nod->stanga ? nod->stanga->latime : 0;
+        int wDr = nod->dreapta ? nod->dreapta->latime : 0;
+        int hSt = nod->stanga ? nod->stanga->inaltime : 0;
+        int hDr = nod->dreapta ? nod->dreapta->inaltime : 0;
+
+        int wOp = textwidth(nod->info);
+
+        nod->latime = wSt + wOp + wDr + 2 * SPATIU_OPERATOR;
+        nod-> inaltime = max(hSt, hDr);
+    }
+
+    // 3. fractie (/) - afisare verticala
+    else if (nod->info[0] == '/') {
+
+    }
+}
+
 int main() {
     char expresie[1001];
 
@@ -311,6 +363,10 @@ int main() {
         cout << "Valid. Se genereaza arborele in expresie.out" << endl;
         NodArbore* radacina = construiesteArbore(0, nrTokeni - 1);
         afiseazaArbore(radacina, 0);
+
+        // --- Partea Grafica ---
+
+        
     }
     else {
         cout << "Expresie invalida" << endl;
