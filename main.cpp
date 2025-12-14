@@ -18,12 +18,18 @@ ofstream fout("expresie.out");
 #define TIP_FUNCTIE 4    // ex: sin, cos, ln, abs
 #define TIP_PARANTEZA_ST 5  // ex: (
 #define TIP_PARANTEZA_DR 6  // ex: )
+#define TIP_MATRICE_ST 7    // pentru [
+#define TIP_MATRICE_DR 8    // pentru ]
+#define TIP_VIRGULA 9       // pentru ,
+#define TIP_MATRICE 10      // pentru nodul radacina al matricei
 
 // cateva constante pentru grafica
 #define SPATIU_OPERATOR 10  // spatiul in pixeli intre operatori si operanzi
 #define INALTIME_TEXT 20    // inaltimea aproximativa a textului
 #define MARIME_FONT 3      // marimea fontului
 
+#define MAX_LINII 20
+#define MAX_COLOANE 20
 
 struct Token {
     char text[50]; // textul efectiv sin sau 3.26
@@ -37,7 +43,7 @@ struct NodArbore {
     NodArbore* stanga;
     NodArbore* dreapta;
 
-	// dimensiunile nodului pentru desenare
+    // dimensiunile nodului pentru desenare
     int latime;
     int inaltime;
 };
@@ -100,7 +106,7 @@ void tokenizare(char expresie[]) {
 
             if (strcmp(t, "sin") == 0 || strcmp(t, "cos") == 0 ||
                 strcmp(t, "ln") == 0 || strcmp(t, "sqrt") == 0 ||
-                strcmp(t, "abs") == 0) {
+                strcmp(t, "abs") == 0 || strcmp(t, "int") == 0) {
                 listaTokeni[nrTokeni].tip = TIP_FUNCTIE;
                 listaTokeni[nrTokeni].prioritate = 5;
             }
@@ -110,35 +116,48 @@ void tokenizare(char expresie[]) {
             nrTokeni++;
         }
 
-        // 4. operator sau paranteza
-        else if (esteOperator(expresie[i]) || expresie[i] == '(' || expresie[i] == ')') {
+        // 4. operator paranteze sau matrice
+        else if (strchr("+-*/^,[]()", expresie[i])) {
             listaTokeni[nrTokeni].text[0] = expresie[i];
             listaTokeni[nrTokeni].text[1] = '\0';
 
-            if (expresie[i] == '(') {
+            char c = expresie[i];
+            if (c == '(') {
                 listaTokeni[nrTokeni].tip = TIP_PARANTEZA_ST;
                 listaTokeni[nrTokeni].prioritate = 0;
             }
-            else if (expresie[i] == ')') {
+            else if (c == ')') {
                 listaTokeni[nrTokeni].tip = TIP_PARANTEZA_DR;
                 listaTokeni[nrTokeni].prioritate = 0;
             }
-            else {
+            else if (c == '[') {
+                listaTokeni[nrTokeni].tip = TIP_MATRICE_ST;
+                listaTokeni[nrTokeni].prioritate = 0;
+            }
+            else if (c == ']') {
+                listaTokeni[nrTokeni].tip = TIP_MATRICE_DR;
+                listaTokeni[nrTokeni].prioritate = 0;
+            }
+            else if (c == ',') {
+                listaTokeni[nrTokeni].tip = TIP_VIRGULA;
+                listaTokeni[nrTokeni].prioritate = 0;
+            }
+            else { // Operatori normali (+ - * / ^)
                 listaTokeni[nrTokeni].tip = TIP_OPERATOR;
-                if (expresie[i] == '+' || expresie[i] == '-') listaTokeni[nrTokeni].prioritate = 1;
-                else if (expresie[i] == '*' || expresie[i] == '/') listaTokeni[nrTokeni].prioritate = 2;
-                else if (expresie[i] == '^') listaTokeni[nrTokeni].prioritate = 3;
+                if (c == '+' || c == '-') listaTokeni[nrTokeni].prioritate = 1;
+                else if (c == '*' || c == '/') listaTokeni[nrTokeni].prioritate = 2;
+                else if (c == '^') listaTokeni[nrTokeni].prioritate = 3;
             }
             nrTokeni++;
             i++;
         }
         else {
-            i++; // Caractere necunoscute
+            i++; // caractere necunoscute
         }
     }
 }
 
-// Functie validare
+// f de validare
 bool valideazaExpresie() {
 
     // paranteze
@@ -165,7 +184,7 @@ bool valideazaExpresie() {
             return 0;
         }
     }
-    // Nu putem incepe cu )
+    // nu putem incepe cu )
     if (listaTokeni[0].tip == TIP_PARANTEZA_DR) {
         fout << "Eroare: Expresia nu poate incepe cu paranteza inchisa!\n";
         return 0;
@@ -185,7 +204,7 @@ bool valideazaExpresie() {
 
         // A. operator
         if (curent.tip == TIP_OPERATOR) {
-            // Nu poate urma alt operator sau paranteza inchisa doar + sau -
+            // nu alt operator sau paranteza inchisa ci doar + sau -
             if (urmator.tip == TIP_OPERATOR) {
                 if (urmator.text[0] != '+' && urmator.text[0] != '-') {
                     fout << "Eroare: Doi operatori consecutivi nepermisi (" << curent.text << " " << urmator.text << ")!\n";
@@ -215,9 +234,9 @@ bool valideazaExpresie() {
         }
 
         if (curent.tip == TIP_PARANTEZA_ST) {
-            // Verificam daca urmeaza operator
+            // daca urmeaza operator
             if (urmator.tip == TIP_OPERATOR) {
-                // daca operatorul e + sau - e ok altfel nu
+                // tre sa ffie neaparat + sau -
                 if (urmator.text[0] != '+' && urmator.text[0] != '-') {
                     fout << "Eroare: Operatorul '" << urmator.text << "' nu poate sta imediat dupa paranteza deschisa!\n";
                     return 0;
@@ -230,7 +249,7 @@ bool valideazaExpresie() {
         }
     }
 
-    return 1; // Totul e OK
+    return 1; //daca totul e ok
 }
 
 NodArbore* construiesteArbore(int st, int dr) {
@@ -239,55 +258,69 @@ NodArbore* construiesteArbore(int st, int dr) {
 
     int minPrio = 999;
     int pozitieOperator = -1;
-    int paranteze = 0;
+    int paranteze = 0; // si pt () si pt []
 
+    // 1. op cu prio minima
     for (int i = dr; i >= st; i--) {
         Token t = listaTokeni[i];
-        if (t.tip == TIP_PARANTEZA_DR) paranteze++;
-        else if (t.tip == TIP_PARANTEZA_ST) paranteze--;
-        else if (paranteze == 0 && t.tip == TIP_OPERATOR) {
-            if (t.prioritate < minPrio) {
-                minPrio = t.prioritate;
-                pozitieOperator = i;
+
+        // Numaram parantezele ca sa sarim peste ce e inauntru
+        if (t.tip == TIP_PARANTEZA_DR || t.tip == TIP_MATRICE_DR) paranteze++;
+        else if (t.tip == TIP_PARANTEZA_ST || t.tip == TIP_MATRICE_ST) paranteze--;
+
+        // Daca suntem in afara oricaror paranteze
+        else if (paranteze == 0) {
+            // Verificam operatorii (inclusiv virgula)
+            if (t.tip == TIP_OPERATOR || t.tip == TIP_VIRGULA) {
+                if (t.prioritate < minPrio) {
+                    minPrio = t.prioritate;
+                    pozitieOperator = i;
+                }
+                // Virgula are prioritate 0, deci va fi aleasa ultima (fiind cea mai mica)
             }
-            // la prioritate 1 ne oprim imediat
-            if (minPrio == 1) break;
         }
     }
 
+    // A. Daca am gasit operator (ex: +, *, sau ,)
     if (pozitieOperator != -1) {
         NodArbore* radacina = nodNou(listaTokeni[pozitieOperator]);
-        if (pozitieOperator == st) { // pt operator unar
-            radacina->stanga = NULL;
-            radacina->dreapta = construiesteArbore(st + 1, dr);
-        }
-        else {
-            radacina->stanga = construiesteArbore(st, pozitieOperator - 1);
-            radacina->dreapta = construiesteArbore(pozitieOperator + 1, dr);
-        }
+        radacina->stanga = construiesteArbore(st, pozitieOperator - 1);
+        radacina->dreapta = construiesteArbore(pozitieOperator + 1, dr);
         return radacina;
     }
 
-    // daca nu e operator verificam daca parantezele exterioare sunt pereche
+    // B. Daca nu e operator, verificam () si le stergem
     if (listaTokeni[st].tip == TIP_PARANTEZA_ST && listaTokeni[dr].tip == TIP_PARANTEZA_DR) {
-        int k = 0;
-        bool suntPereche = true;
-        // verif daca paranteza de la st se inchide chiar la dr
+        //daca sunt pereche
+        int k = 0; bool ok = true;
         for (int i = st; i < dr; i++) {
             if (listaTokeni[i].tip == TIP_PARANTEZA_ST) k++;
             if (listaTokeni[i].tip == TIP_PARANTEZA_DR) k--;
-            if (k == 0) {
-                suntPereche = false;
-                break;
-            }
+            if (k == 0) { ok = false; break; }
         }
+        if (ok) return construiesteArbore(st + 1, dr - 1);
+    }
 
-        if (suntPereche) {
-            return construiesteArbore(st + 1, dr - 1);
+    // C. Verificam [] si facem nod matrice
+    if (listaTokeni[st].tip == TIP_MATRICE_ST && listaTokeni[dr].tip == TIP_MATRICE_DR) {
+        //daca sunt pereche
+        int k = 0; bool ok = true;
+        for (int i = st; i < dr; i++) {
+            if (listaTokeni[i].tip == TIP_MATRICE_ST) k++;
+            if (listaTokeni[i].tip == TIP_MATRICE_DR) k--;
+            if (k == 0) { ok = false; break; }
+        }
+        if (ok) {
+            NodArbore* matrice = new NodArbore;
+            strcpy(matrice->info, "[]");
+            matrice->tip = TIP_MATRICE;
+            matrice->stanga = NULL;
+            matrice->dreapta = construiesteArbore(st + 1, dr - 1);
+            return matrice;
         }
     }
 
-    // Daca e functie
+    // D. Functii (sin, cos, int)
     if (listaTokeni[st].tip == TIP_FUNCTIE) {
         NodArbore* radacina = nodNou(listaTokeni[st]);
         radacina->stanga = NULL;
@@ -296,6 +329,84 @@ NodArbore* construiesteArbore(int st, int dr) {
     }
 
     return NULL;
+}
+
+void fMatrice(NodArbore* nod, NodArbore* mat[MAX_LINII][MAX_COLOANE], int& rows, int& cols, int rurent, int curent) {
+    if (nod == NULL) return;
+
+    if (nod->tip == TIP_MATRICE) {
+        fMatrice(nod->dreapta, mat, rows, cols, rurent, 0);
+        if (rurent != -1) rows++;
+        return;
+    }
+
+    if (nod->tip == TIP_VIRGULA) {
+        // daca virgula separa linii din matrrice
+        if (nod->stanga->tip == TIP_MATRICE) {
+            fMatrice(nod->stanga, mat, rows, cols, rows, 0);
+            fMatrice(nod->dreapta, mat, rows, cols, rows, 0);
+        }
+        // altfel virgula separa elemente de pe o linie adc coloane
+        else
+            fMatrice(nod->stanga, mat, rows, cols, rurent, curent);
+        return;
+    }
+
+    // daca e element efectiv il punem pe prima col libera din linia rows
+    int c = 0;
+    while (mat[rows][c] != NULL && c < MAX_COLOANE) c++;
+    if (c < MAX_COLOANE) {
+        mat[rows][c] = nod;
+        if (c + 1 > cols) cols = c + 1; // act nr maxim de col
+    }
+}
+
+void extrageElementeLinie(NodArbore* nod, NodArbore* lista[], int& k) {
+    if (nod == NULL) return;
+    if (nod->tip == TIP_VIRGULA) {
+        extrageElementeLinie(nod->stanga, lista, k);
+        extrageElementeLinie(nod->dreapta, lista, k);
+    }
+    else {
+        lista[k++] = nod;
+    }
+}
+
+void construiesteMat(NodArbore* radacinaMatrice, NodArbore* grid[MAX_LINII][MAX_COLOANE], int& rows, int& cols) {
+    for (int i = 0; i < MAX_LINII; i++)
+        for (int j = 0; j < MAX_COLOANE; j++) grid[i][j] = NULL;
+    rows = 0; cols = 0;
+
+    NodArbore* continut = radacinaMatrice->dreapta;
+
+    // 1. Colectam randurile
+    NodArbore* listaLinii[MAX_LINII];
+    int nrLinii = 0;
+    extrageElementeLinie(continut, listaLinii, nrLinii);
+    // Atentie: extrageElementeLinie va pune in listaLinii pointeri la nodurile TIP_MATRICE (randuri)
+
+    rows = nrLinii;
+
+    // 2. Pentru fiecare linie, extragem elementele
+    for (int i = 0; i < rows; i++) {
+        if (listaLinii[i]->tip == TIP_MATRICE) {
+            NodArbore* elemente[MAX_COLOANE];
+            int nrElem = 0;
+            extrageElementeLinie(listaLinii[i]->dreapta, elemente, nrElem);
+
+            if (nrElem > cols) cols = nrElem;
+
+            for (int j = 0; j < nrElem; j++) {
+                grid[i][j] = elemente[j];
+            }
+        }
+        else {
+            // Cazul vector simplu [1, 2, 3] (o singura linie, nu are sub-matrici)
+            // Aici listaLinii[i] este direct elementul
+            grid[0][i] = listaLinii[i];
+            if (i == 0) { rows = 1; cols = nrLinii; } // Setam o singura data
+        }
+    }
 }
 
 void afiseazaArbore(NodArbore* r, int nivel) {
@@ -313,7 +424,7 @@ int getLatimeText(char* text) {
 // Functie pentru calcularea dimensiunilor textului din fiecare nod
 // Postordine, de jos in sus
 void calculeazaDimensiuni(NodArbore* nod) {
-    if(nod == NULL) return;
+    if (nod == NULL) return;
 
     calculeazaDimensiuni(nod->stanga);
     calculeazaDimensiuni(nod->dreapta);
@@ -361,28 +472,69 @@ void calculeazaDimensiuni(NodArbore* nod) {
 
     // 5. functie (sin, cos, etc)
     else if (nod->tip == TIP_FUNCTIE) {
-        int wNume = textwidth(nod->info);
-        int wArg = nod->dreapta->latime;
-        
-        nod->latime = wNume + wArg + 20; // +20 pentru paranteze
-        nod->inaltime = max(textheight("A"), nod->dreapta->inaltime);
+        if (strcmp(nod->info, "int") == 0) {
+            int wArg = nod->dreapta->latime;
+            int hArg = nod->dreapta->inaltime;
+
+            nod->latime = 15 + wArg + 10 + textwidth("dx");
+            nod->inaltime = max(textheight("A") * 2, hArg + 10); //putin mai inalt decat expresia
+        }
+        else {
+            int wNume = textwidth(nod->info);
+            int wArg = nod->dreapta->latime;
+
+            nod->latime = wNume + wArg + 20; // +20 pentru paranteze
+            nod->inaltime = max(textheight("A"), nod->dreapta->inaltime);
+        }
+    }
+    else if (nod->tip == TIP_MATRICE) {
+        // Folosim gridul pentru a calcula dimensiunile
+        NodArbore* mat[MAX_LINII][MAX_COLOANE];
+        int rows, cols;
+        construiesteMat(nod, mat, rows, cols);
+
+        // Vectori pentru dimensiunile maxime
+        int colW[MAX_COLOANE] = { 0 };
+        int rowH[MAX_LINII] = { 0 };
+
+        // Pas 1: Calculam dimensiunile fiecarui element recursiv
+        // si determinam maximele pe linii si coloane
+        for (int i = 0; i < rows; i++) {
+            for (int j = 0; j < cols; j++) {
+                if (mat[i][j]) {
+                    calculeazaDimensiuni(mat[i][j]); // Recursiv pt elemente
+                    if (mat[i][j]->latime > colW[j]) colW[j] = mat[i][j]->latime;
+                    if (mat[i][j]->inaltime > rowH[i]) rowH[i] = mat[i][j]->inaltime;
+                }
+            }
+        }
+
+        // Pas 2: Calculam totalul
+        int totalW = 0;
+        for (int j = 0; j < cols; j++) totalW += colW[j];
+        totalW += (cols - 1) * 15; // Spatiu intre coloane
+        totalW += 30; // Spatiu pentru paranteze [ ]
+
+        int totalH = 0;
+        for (int i = 0; i < rows; i++) totalH += rowH[i];
+        totalH += (rows - 1) * 10; // Spatiu intre linii
+        totalH += 10; // Padding sus/jos
+
+        nod->latime = totalW;
+        nod->inaltime = totalH;
     }
 }
 
-// Functie pentru desenarea arborelui (preordine, de sus in jos)
-// (x, y) reprezinta punctul de centru al zonei de desenare
-
-void deseneazaRecursiv(NodArbore* nod, int x, int y) {
+void deseneazaRecursiv(NodArbore* nod, int x, int y, bool arataParanteze = true) //x,y centrul zonei de desenare
+{
     if (nod == NULL) return;
 
     settextstyle(SANS_SERIF_FONT, HORIZ_DIR, MARIME_FONT);
     setcolor(WHITE);
 
     // 1. frunza (numar sau variabila)
-    if (nod->stanga == NULL && nod->dreapta == NULL) {
-        // outtextxy deseneaza de la coltul stanga sus, deci ajustam coordonatele
+    if (nod->stanga == NULL && nod->dreapta == NULL)
         outtextxy(x - nod->latime / 2, y - nod->latime / 2, nod->info);
-    }
 
     // 2. operator unar/binar (+, -, *) - afisare liniara
     else if (nod->info[0] == '+' || nod->info[0] == '-' || nod->info[0] == '*') {
@@ -440,23 +592,98 @@ void deseneazaRecursiv(NodArbore* nod, int x, int y) {
 
     // 5. functie (sin, cos, etc)
     else if (nod->tip == TIP_FUNCTIE) {
-        int wNume = textwidth(nod->info);
-        int wArg = nod->dreapta->latime;
+        if (strcmp(nod->info, "int") == 0) {
+            int hTotal = nod->inaltime;
+            int xSimbol = x - nod->latime / 2 + 5;
 
-        // scriem numele functiei (ex: sin) la stanga
-        int xStart = x - nod->latime / 2;
-        outtextxy(xStart, y - textheight("A") / 2, nod->info);
+            //carlig sus
+            arc(xSimbol, y - hTotal / 2 + 5, 0, 180, 5);
+            //carlig jos
+            arc(xSimbol, y + hTotal / 2 - 5, 180, 360, 5);
+            //linia
+            line(xSimbol - 5, y - hTotal / 2 + 5, xSimbol + 5, y + hTotal / 2 - 5); // linie usor oblica
 
-        // desenam paranteza deschisa '('
-        outtextxy(xStart + wNume, y - textheight("A") / 2, "(");
+            //expresia de dupa semnul de integrala
+            int wArg = nod->dreapta->latime;
+            deseneazaRecursiv(nod->dreapta, xSimbol + 15 + wArg / 2, y);
 
-        // desenam argumentul recursiv
-        deseneazaRecursiv(nod->dreapta, xStart + wNume + 10 + wArg / 2, y);
+            // dx la final
+            outtextxy(x + nod->latime / 2 - textwidth("dx"), y - textheight("d") / 2, "dx");
+        }
+        else {
+            int wNume = textwidth(nod->info);
+            int wArg = nod->dreapta->latime;
 
-        // desenam paranteza inchisa ')'
-        outtextxy(xStart + wNume + 10 + wArg + 5, y - textheight("A") / 2, ")");
+            // numele functiei
+            int xStart = x - nod->latime / 2;
+            outtextxy(xStart, y - textheight("A") / 2, nod->info);
+
+            // desen (
+            outtextxy(xStart + wNume, y - textheight("A") / 2, "(");
+
+            // arg functiei
+            deseneazaRecursiv(nod->dreapta, xStart + wNume + 10 + wArg / 2, y);
+
+            // desen )
+            outtextxy(xStart + wNume + 10 + wArg + 5, y - textheight("A") / 2, ")");
+        }
     }
+    // matrice
+    else if (nod->tip == TIP_MATRICE) {
+        NodArbore* mat[MAX_LINII][MAX_COLOANE];
+        int rows, cols;
+        construiesteMat(nod, mat, rows, cols);
 
+        int w = nod->latime;
+        int h = nod->inaltime;
+
+        // 1. Desenam Parantezele Mari (O SINGURA DATA)
+        // Stanga [
+        line(x - w / 2, y - h / 2, x - w / 2 + 8, y - h / 2);
+        line(x - w / 2, y - h / 2, x - w / 2, y + h / 2);
+        line(x - w / 2, y + h / 2, x - w / 2 + 8, y + h / 2);
+        // Dreapta ]
+        line(x + w / 2, y - h / 2, x + w / 2 - 8, y - h / 2);
+        line(x + w / 2, y - h / 2, x + w / 2, y + h / 2);
+        line(x + w / 2, y + h / 2, x + w / 2 - 8, y + h / 2);
+
+        // Recalculam latimile coloanelor si inaltimile liniilor pentru pozitionare
+        int colW[MAX_COLOANE] = { 0 };
+        int rowH[MAX_LINII] = { 0 };
+        for (int i = 0; i < rows; i++)
+            for (int j = 0; j < cols; j++)
+                if (mat[i][j]) {
+                    if (mat[i][j]->latime > colW[j]) colW[j] = mat[i][j]->latime;
+                    if (mat[i][j]->inaltime > rowH[i]) rowH[i] = mat[i][j]->inaltime;
+                }
+
+        // 2. Desenam Elementele
+        // Calculam Y-ul de start (coltul stanga-sus al continutului)
+        int startY = y - h / 2 + 5;
+
+        for (int i = 0; i < rows; i++) {
+            // Y-ul curent pentru centrul randului
+            int curentY = startY + rowH[i] / 2;
+
+            int startX = x - w / 2 + 15; // X-ul de start
+
+            for (int j = 0; j < cols; j++) {
+                // X-ul curent pentru centrul coloanei
+                int curentX = startX + colW[j] / 2;
+
+                if (mat[i][j]) {
+                    // Desenam elementul centrat in celula sa
+                    deseneazaRecursiv(mat[i][j], curentX, curentY);
+                }
+
+                // Avansam X-ul
+                startX += colW[j] + 15; // + spatiu intre coloane
+            }
+
+            // Avansam Y-ul
+            startY += rowH[i] + 10; // + spatiu intre linii
+        }
+    }
 }
 
 int main() {
@@ -476,18 +703,18 @@ int main() {
         NodArbore* radacina = construiesteArbore(0, nrTokeni - 1);
         afiseazaArbore(radacina, 0);
 
-        // --- Partea Grafica ---
+        //grafica
         initwindow(1200, 600, "Vizualizator de formule matematice");
         settextstyle(SANS_SERIF_FONT, HORIZ_DIR, MARIME_FONT);
 
         calculeazaDimensiuni(radacina);
 
         outtextxy(50, 50, "Expresia randata grafic: ");
-        deseneazaRecursiv(radacina, 600, 300); // in centrul ecranului
+        deseneazaRecursiv(radacina, 600, 300); //centrul ecranului
 
-        getch(); // asteptam apasarea unei taste pentru a inchide
+        getch(); //taste pt inchideree
         closegraph();
-        
+
     }
     else {
         cout << "Expresie invalida" << endl;
