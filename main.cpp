@@ -61,11 +61,6 @@ NodArbore* nodNou(Token t) {
     return n;
 }
 
-bool esteOperator(char c) {
-    if (strchr("+-*/^", c)) return true;
-    return false;
-}
-
 void tokenizare(char expresie[]) {
     nrTokeni = 0;
     int n = strlen(expresie);
@@ -421,6 +416,15 @@ int getLatimeText(char* text) {
     return textwidth(text);
 }
 
+// Functie auxiliara pentru a determina daca desenam paranteze
+// Returneaza prioritatea operatorului: 1(+,-), 2(*,/), 3(^), 9(altele)
+int getPrioritateVizuala(char* info) {
+    if (strchr("+-", info[0])) return 1;
+    if (strchr("*/", info[0])) return 2;
+    if (strchr("^", info[0])) return 3;
+    return 9; // Functii, numere, variabile - au prioritate maxima vizual
+}
+
 // Functie pentru calcularea dimensiunilor textului din fiecare nod
 // Postordine, de jos in sus
 void calculeazaDimensiuni(NodArbore* nod) {
@@ -443,6 +447,26 @@ void calculeazaDimensiuni(NodArbore* nod) {
     else if (nod->info[0] == '+' || nod->info[0] == '-' || nod->info[0] == '*') {
         int wSt = nod->stanga ? nod->stanga->latime : 0;
         int wDr = nod->dreapta ? nod->dreapta->latime : 0;
+
+        // --- LOGICA NOUA PENTRU PARANTEZE ---
+        int prioTata = getPrioritateVizuala(nod->info);
+        int wPar = textwidth("(");
+
+        // Verificam daca stanga are nevoie de paranteze
+        if (nod->stanga && nod->stanga->tip == TIP_OPERATOR) {
+            if (getPrioritateVizuala(nod->stanga->info) < prioTata)
+                wSt += 2 * wPar + 20; // Adaugam loc pt ( )
+        }
+
+        // Verificam daca dreapta are nevoie de paranteze
+        if (nod->dreapta && nod->dreapta->tip == TIP_OPERATOR) {
+            // La dreapta punem paranteze si daca prioritatile sunt egale (ex: a-(b-c))
+            // dar pentru (a-b)*c e suficienta conditia < 
+            if (getPrioritateVizuala(nod->dreapta->info) < prioTata)
+                wDr += 2 * wPar + 20;
+        }
+        // ------------------------------------
+
         int hSt = nod->stanga ? nod->stanga->inaltime : 0;
         int hDr = nod->dreapta ? nod->dreapta->inaltime : 0;
 
@@ -457,13 +481,20 @@ void calculeazaDimensiuni(NodArbore* nod) {
         int wSt = nod->stanga->latime;
         int wDr = nod->dreapta->latime;
 
-        nod->latime = max(wSt, wDr) + 10;
+        nod->latime = max(wSt, wDr) + 20;
         nod->inaltime = nod->stanga->inaltime + nod->dreapta->inaltime + 10;
     }
 
     // 4. putere (^)
     else if (nod->info[0] == '^') {
         int wBaza = nod->stanga->latime;
+
+        // Daca baza e operator sau functie complexa, adaugam paranteze la calcul
+        // Ex: (a+b)^2
+        if (nod->stanga && (nod->stanga->tip == TIP_OPERATOR || nod->stanga->tip == TIP_FUNCTIE)) {
+            wBaza += 2 * textwidth("(") + 20;
+        }
+
         int wExp = nod->dreapta->latime;
 
         nod->latime = wBaza + wExp;
@@ -487,6 +518,8 @@ void calculeazaDimensiuni(NodArbore* nod) {
             nod->inaltime = max(textheight("A"), nod->dreapta->inaltime);
         }
     }
+
+    //6. matrice
     else if (nod->tip == TIP_MATRICE) {
         // Folosim gridul pentru a calcula dimensiunile
         NodArbore* mat[MAX_LINII][MAX_COLOANE];
@@ -534,27 +567,67 @@ void deseneazaRecursiv(NodArbore* nod, int x, int y, bool arataParanteze = true)
 
     // 1. frunza (numar sau variabila)
     if (nod->stanga == NULL && nod->dreapta == NULL)
-        outtextxy(x - nod->latime / 2, y - nod->latime / 2, nod->info);
+        outtextxy(x - nod->latime / 2, y - textheight("A") / 2, nod->info);
 
     // 2. operator unar/binar (+, -, *) - afisare liniara
     else if (nod->info[0] == '+' || nod->info[0] == '-' || nod->info[0] == '*') {
         // desenam operatorul la mijloc
         //outtextxy(x - textwidth(nod->info) / 2, y - textheight(nod->info) / 2, nod->info);
         //outtextxy(x - textwidth(nod->info) / 2, y - textheight("+") / 5, nod->info);
-        outtextxy(x - textwidth(nod->info) / 2, y - 5, nod->info);
+        outtextxy(x - textwidth(nod->info) / 2, y - textheight("A") / 2, nod->info);
 
-        // calculam pozitiile fiilor
-        int wSt = (nod->stanga) ? nod->stanga->latime : 0;
-        int wDr = (nod->dreapta) ? nod->dreapta->latime : 0;
+        int prioTata = getPrioritateVizuala(nod->info);
+        int wPar = textwidth("(");
+
+        // --- CALCULE PENTRU STANGA ---
+        bool parSt = false;
+        int wSt_Real = nod->stanga ? nod->stanga->latime : 0; // Latimea originala a copilului
+        int wSt_Desen = wSt_Real; // Latimea pe care o ocupa pe ecran (cu tot cu paranteze)
+
+        if (nod->stanga && nod->stanga->tip == TIP_OPERATOR) {
+            if (getPrioritateVizuala(nod->stanga->info) < prioTata) {
+                parSt = true;
+                wSt_Desen += 2 * wPar;
+            }
+        }
+
+        // --- CALCULE PENTRU DREAPTA ---
+        bool parDr = false;
+        int wDr_Real = nod->dreapta ? nod->dreapta->latime : 0;
+        int wDr_Desen = wDr_Real;
+
+        if (nod->dreapta && nod->dreapta->tip == TIP_OPERATOR) {
+            if (getPrioritateVizuala(nod->dreapta->info) < prioTata) {
+                parDr = true;
+                wDr_Desen += 2 * wPar;
+            }
+        }
+
         int wOp = textwidth(nod->info);
 
-        // x-ul pentru stanga: scadem jumatate din operator si jumatate din latimea stanga
-        if (nod->stanga)
-            deseneazaRecursiv(nod->stanga, x - wOp / 2 - SPATIU_OPERATOR - wSt / 2, y);
+        // --- DESENARE STANGA ---
+        if (nod->stanga) {
+            // Centrul zonei din stanga
+            int centruSt = x - wOp / 2 - SPATIU_OPERATOR - wSt_Desen / 2;
 
-        // x-ul pentru dreapta
-        if (nod->dreapta)
-            deseneazaRecursiv(nod->dreapta, x + wOp / 2 + SPATIU_OPERATOR + wDr / 2, y);
+            if (parSt) {
+                outtextxy(centruSt - wSt_Real / 2 - wPar, y - textheight("A") / 2, "(");
+                outtextxy(centruSt + wSt_Real / 2 + 2, y - textheight("A") / 2, ")");
+            }
+            deseneazaRecursiv(nod->stanga, centruSt, y);
+        }
+
+        // --- DESENARE DREAPTA ---
+        if (nod->dreapta) {
+            // Centrul zonei din dreapta
+            int centruDr = x + wOp / 2 + SPATIU_OPERATOR + wDr_Desen / 2;
+
+            if (parDr) {
+                outtextxy(centruDr - wDr_Real / 2 - wPar, y - textheight("A") / 2, "(");
+                outtextxy(centruDr + wDr_Real / 2 + 2, y - textheight("A") / 2, ")");
+            }
+            deseneazaRecursiv(nod->dreapta, centruDr, y);
+        }
     }
 
 
@@ -563,7 +636,7 @@ void deseneazaRecursiv(NodArbore* nod, int x, int y, bool arataParanteze = true)
         // desenam linia de fractie
         int lungimeLinie = nod->latime;
         //line(x - lungimeLinie / 2, y + textheight("+") / 5, x + lungimeLinie / 2, y + textheight("+") / 5);
-        line(x - lungimeLinie / 2, y + 7, x + lungimeLinie / 2, y + 7);
+        line(x - lungimeLinie / 2, y, x + lungimeLinie / 2, y);
 
         // desenam numaratorul
         int hSt = nod->stanga->inaltime;
@@ -580,13 +653,28 @@ void deseneazaRecursiv(NodArbore* nod, int x, int y, bool arataParanteze = true)
         int wBaza = nod->stanga->latime;
         int wExp = nod->dreapta->latime;
 
-        // desenam baza putin mai la stanga
-        deseneazaRecursiv(nod->stanga, x - wExp / 2, y + 10);
+        bool parBaza = false;
+        int wPar = textwidth("(");
 
-        // desenam exponentul mai sus si mai mic
+        // Verificam daca baza are nevoie de paranteze (ex: (a+b)^2)
+        if (nod->stanga && (nod->stanga->tip == TIP_OPERATOR || nod->stanga->tip == TIP_FUNCTIE)) {
+            parBaza = true;
+            // Latimea calculata in calculeazaDimensiuni deja include wPar*2
+            wBaza -= 2 * wPar; // Latimea reala a continutului
+        }
+
+        // Desenam baza
+        int xBaza = x - wExp / 2;
+        if (parBaza) {
+            outtextxy(xBaza - wBaza / 2 - wPar - 5, y + 10 - textheight("A") / 2, "(");
+            outtextxy(xBaza + wBaza / 2 + wPar, y + 10 - textheight("A") / 2, ")");
+        }
+        deseneazaRecursiv(nod->stanga, xBaza, y + 10);
+
+        // Desenam exponentul
         settextstyle(SANS_SERIF_FONT, HORIZ_DIR, MARIME_FONT - 1);
-        deseneazaRecursiv(nod->dreapta, x + wBaza / 2, y - 15);
-        settextstyle(SANS_SERIF_FONT, HORIZ_DIR, MARIME_FONT); // revenim la font normal
+        deseneazaRecursiv(nod->dreapta, x + (wBaza + (parBaza ? 2 * wPar : 0)) / 2, y - 15);
+        settextstyle(SANS_SERIF_FONT, HORIZ_DIR, MARIME_FONT);
     }
 
 
