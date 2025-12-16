@@ -1,7 +1,7 @@
 ﻿#define _CRT_SECURE_NO_WARNINGS
 #include <iostream>
 #include <fstream>
-#include <cstring> // strcpy, strlen, strcmp
+#include <cstring> 
 #include <cctype>  // isdigit, isalpha
 #include "graphics.h"
 #include "winbgim.h"
@@ -395,42 +395,6 @@ nod* const_arbore(int st, int dr)
     return NULL;
 }
 
-// functie ajutatoare pentru matrice
-void f_matrice(nod* n, nod* mat[max_linii][max_col], int& l, int& c, int l_crt, int c_crt)
-{
-    if (n == NULL) return;
-
-    if (n->tip == tip_matrice)
-    {
-        f_matrice(n->dr, mat, l, c, l_crt, 0);
-        if (l_crt != -1) l++;
-        return;
-    }
-
-    if (n->tip == tip_virgula)
-    {
-        // daca virgula separa linii
-        if (n->st->tip == tip_matrice)
-        {
-            f_matrice(n->st, mat, l, c, l, 0);
-            f_matrice(n->dr, mat, l, c, l, 0);
-        }
-        // daca virgula separa coloane
-        else
-            f_matrice(n->st, mat, l, c, l_crt, c_crt);
-        return;
-    }
-
-    // pun elementul in prima pozitie libera
-    int k = 0;
-    while (mat[l][k] != NULL && k < max_col) k++;
-    if (k < max_col)
-    {
-        mat[l][k] = n;
-        if (k + 1 > c) c = k + 1;
-    }
-}
-
 void extrage_linii(nod* n, nod* lista[], int& k)
 {
     if (n == NULL) return;
@@ -500,14 +464,16 @@ void afisare_arbore(nod* r, int nivel)
 }
 
 // calculam dimensiunile grafice ale fiecarui nod (lat si inalt)
-void calc_dim(nod* n)
+void calc_dim(nod* n, int marime = marime_font)
 {
     if (n == NULL) return;
 
-    calc_dim(n->st);
-    calc_dim(n->dr);
+    settextstyle(SANS_SERIF_FONT, HORIZ_DIR, marime);
 
-    settextstyle(SANS_SERIF_FONT, HORIZ_DIR, marime_font);
+    calc_dim(n->st,marime);
+    calc_dim(n->dr,marime);
+
+    settextstyle(SANS_SERIF_FONT, HORIZ_DIR, marime);
 
     // 1. frunza (numar/variabila)
     if (n->st == NULL && n->dr == NULL)
@@ -543,11 +509,18 @@ void calc_dim(nod* n)
     // 4. putere (^)
     else if (n->info[0] == '^')
     {
+        calc_dim(n->st, marime);//baza
+        calc_dim(n->dr, 1);//exp
+
+        // Resetam stilul curent pentru calculele nodului curent
+        settextstyle(SANS_SERIF_FONT, HORIZ_DIR, marime);
+
         int lat_baza = n->st->lat;
         int lat_exp = n->dr->lat;
 
         n->lat = lat_baza + lat_exp;
         n->inalt = n->st->inalt + (n->dr->inalt / 2);
+        return; 
     }
 
     // 5. functii
@@ -560,6 +533,11 @@ void calc_dim(nod* n)
 
             n->lat = 15 + lat_arg + 10 + textwidth("dx");
             n->inalt = max(textheight("A") * 2, inalt_arg + 10);
+        }
+        else if (strcmp(n->info, "sqrt") == 0)
+        {
+            n->lat = n->dr->lat + 20;
+            n->inalt = n->dr->inalt + 10;
         }
         else
         {
@@ -587,7 +565,7 @@ void calc_dim(nod* n)
             {
                 if (mat[i][j])
                 {
-                    calc_dim(mat[i][j]);
+                    calc_dim(mat[i][j],marime);
                     if (mat[i][j]->lat > col_w[j]) col_w[j] = mat[i][j]->lat;
                     if (mat[i][j]->inalt > row_h[i]) row_h[i] = mat[i][j]->inalt;
                 }
@@ -609,11 +587,11 @@ void calc_dim(nod* n)
     }
 }
 
-void deseneaza(nod* n, int x, int y)
+void deseneaza(nod* n, int x, int y, int marime = marime_font)
 {
     if (n == NULL) return;
 
-    settextstyle(SANS_SERIF_FONT, HORIZ_DIR, marime_font);
+    settextstyle(SANS_SERIF_FONT, HORIZ_DIR, marime);
     setcolor(WHITE);
 
     // 1. frunza (nr sau variabia)
@@ -631,10 +609,10 @@ void deseneaza(nod* n, int x, int y)
         int lat_op = textwidth(n->info);
 
         if (n->st)
-            deseneaza(n->st, x - lat_op / 2 - spatiu_op - lat_st / 2, y);
+            deseneaza(n->st, x - lat_op / 2 - spatiu_op - lat_st / 2, y, marime);
 
         if (n->dr)
-            deseneaza(n->dr, x + lat_op / 2 + spatiu_op + lat_dr / 2, y);
+            deseneaza(n->dr, x + lat_op / 2 + spatiu_op + lat_dr / 2, y, marime);
     }
 
     // 3. fractie
@@ -644,10 +622,10 @@ void deseneaza(nod* n, int x, int y)
         line(x - lungime / 2, y + 7, x + lungime / 2, y + 7);//linia de fractie
 
         int inalt_st = n->st->inalt;
-        deseneaza(n->st, x, y - inalt_st / 2 - 5);//numarator
+        deseneaza(n->st, x, y - inalt_st / 2 - 5, marime);//numarator
 
         int inalt_dr = n->dr->inalt;
-        deseneaza(n->dr, x, y + inalt_dr / 2 + 5);//numitor
+        deseneaza(n->dr, x, y + inalt_dr / 2 + 5, marime);//numitor
     }
 
     // 4. putere
@@ -655,12 +633,8 @@ void deseneaza(nod* n, int x, int y)
     {
         int lat_baza = n->st->lat;
         int lat_exp = n->dr->lat;
-
-        deseneaza(n->st, x - lat_exp / 2, y + 10);
-
-        settextstyle(SANS_SERIF_FONT, HORIZ_DIR, marime_font - 1); //exponentul mai sus si mai mic
-        deseneaza(n->dr, x + lat_baza / 2, y - 15);
-        settextstyle(SANS_SERIF_FONT, HORIZ_DIR, marime_font);//revenim la font normal
+        deseneaza(n->st, x - lat_exp / 2, y + 10, marime);
+        deseneaza(n->dr, x + lat_baza / 2, y - 15, 1);
     }
 
     // 5. functii
@@ -676,9 +650,25 @@ void deseneaza(nod* n, int x, int y)
             line(x_simbol - 5, y - h / 2 + 5, x_simbol + 5, y + h / 2 - 5);//linia
 
             int lat_arg = n->dr->lat;//expresia de dupa semnul de integrala
-            deseneaza(n->dr, x_simbol + 15 + lat_arg / 2, y);
+            deseneaza(n->dr, x_simbol + 15 + lat_arg / 2, y, marime);
             // dx la final
             outtextxy(x + n->lat / 2 - textwidth("dx"), y - textheight("d") / 2, "dx");
+        }
+        else if (strcmp(n->info, "sqrt") == 0)
+        {
+            int w = n->lat;
+            int h = n->inalt;
+
+            int x_start = x - w / 2;
+            //linia putin deasupra continutului
+            int y_top = y - n->dr->inalt / 2 - 2;
+            
+            line(x_start, y, x_start + 5, y);//codita mica
+            line(x_start + 5, y, x_start + 10, y + n->dr->inalt / 2 + 5);//linia care coboara
+            line(x_start + 10, y + n->dr->inalt / 2 + 5, x_start + 15, y_top);//linia care urca
+            line(x_start + 15, y_top, x + w / 2, y_top);//linie de deeasupra
+
+            deseneaza(n->dr, x_start + 15 + n->dr->lat / 2, y, marime);//continutul
         }
         else
         {
@@ -688,7 +678,7 @@ void deseneaza(nod* n, int x, int y)
 
             outtextxy(x_start, y - textheight("A") / 2, n->info);// numele functiei
             outtextxy(x_start + lat_nume, y - textheight("A") / 2, "(");// desen (
-            deseneaza(n->dr, x_start + lat_nume + 10 + lat_arg / 2, y);// arg functiei
+            deseneaza(n->dr, x_start + lat_nume + 10 + lat_arg / 2, y-7, marime);// arg functiei
             outtextxy(x_start + lat_nume + 10 + lat_arg + 5, y - textheight("A") / 2, ")");// desen )
         }
     }
@@ -734,7 +724,7 @@ void deseneaza(nod* n, int x, int y)
                 int crt_x = start_x + col_w[j] / 2;//x curent pentru centrul coloanei
                 if (mat[i][j])
                 {
-                    deseneaza(mat[i][j], crt_x, crt_y);
+                    deseneaza(mat[i][j], crt_x, crt_y, marime);
                 }
                 start_x += col_w[j] + 15;
             }
