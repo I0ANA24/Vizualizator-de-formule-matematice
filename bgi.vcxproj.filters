@@ -48,9 +48,6 @@
     <ClCompile Include="main.cxx">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="main.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="winbgim.h">
@@ -70,7 +67,7 @@
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <None Include="expresie.in" />
-    <None Include="expresie.out" />
+    <None Include="expresie2.in" />
+    <None Include="expresie2.out" />
   </ItemGroup>
 </Project>

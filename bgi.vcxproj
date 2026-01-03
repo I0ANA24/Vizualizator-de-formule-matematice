@@ -72,7 +72,6 @@
     <ClCompile Include="mouse.cxx" />
     <ClCompile Include="palette.cxx" />
     <ClCompile Include="main.cxx" />
-    <ClCompile Include="main.cpp" />
     <ClCompile Include="text.cxx" />
     <ClCompile Include="winbgi.cxx" />
     <ClCompile Include="winthread.cxx" />
@@ -85,8 +84,8 @@
     <ClInclude Include="winbgitypes.h" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="expresie.in" />
-    <None Include="expresie.out" />
+    <None Include="expresie2.in" />
+    <None Include="expresie2.out" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
