@@ -28,6 +28,12 @@ ofstream fout("expresie2.out");
 #define inalt_txt 20   // inaltime text
 #define marime_font 3  // font size
 
+// Constante pentru layout dinamic
+const int PADDING_X = 6;       // Spatiu orizontal minim intre elemente
+const int SQRT_HOOK_W = 12;    // Latimea simbolului "V" de la radical
+const int SQRT_OVERHANG = 4;   // Cat iese linia radicalului in dreapta peste continut
+const int FRAC_PADDING = 8;    // Cati pixeli iese linia de fractie in stanga/dreapta
+
 #define max_linii 20
 #define max_col 20
 
@@ -50,7 +56,7 @@ struct nod
     int inalt; // inaltime
 };
 
-token tokeni[100]; // vectorul de elemente
+token tokeni[2000]; // vectorul de elemente
 int nr_tok = 0;    // cate elemente am gasit
 
 // functie pentru crearea unui nod nou
@@ -118,9 +124,10 @@ void tokenizare(char s[])
             strcpy(t, tokeni[nr_tok].text);
 
             // verificam daca e functie cunoscuta
-            if (strcmp(t, "sin") == 0 || strcmp(t, "cos") == 0 ||
-                    strcmp(t, "ln") == 0 || strcmp(t, "sqrt") == 0 ||
-                    strcmp(t, "abs") == 0 || strcmp(t, "int") == 0)
+            if (strcmp(t, "sin") == 0 || strcmp(t, "cos") == 0 || strcmp(t, "arccos") == 0 ||
+                strcmp(t, "arcsin") == 0 || strcmp(t, "arctg") == 0 || strcmp(t, "arcctg") == 0 ||
+                strcmp(t, "ln") == 0 || strcmp(t, "sqrt") == 0 ||
+                strcmp(t, "abs") == 0 || strcmp(t, "int") == 0 || strcmp(t, "det") == 0)
             {
                 tokeni[nr_tok].tip = tip_functie;
                 tokeni[nr_tok].prioritate = 5;
@@ -222,8 +229,8 @@ bool validare()
 
     // nu putem termina cu operator, functie sau paranteza deschisa
     if (tokeni[nr_tok - 1].tip == tip_operator ||
-            tokeni[nr_tok - 1].tip == tip_functie ||
-            tokeni[nr_tok - 1].tip == tip_par_st)
+        tokeni[nr_tok - 1].tip == tip_functie ||
+        tokeni[nr_tok - 1].tip == tip_par_st)
     {
         fout << "Eroare: Expresia este neterminata!\n";
         return 0;
@@ -344,9 +351,9 @@ nod* const_arbore(int st, int dr)
         bool ok = true;
         for (int i = st; i < dr; i++)
         {
-            if (tokeni[i].tip == tip_par_st) 
+            if (tokeni[i].tip == tip_par_st)
                 k++;
-            if (tokeni[i].tip == tip_par_dr) 
+            if (tokeni[i].tip == tip_par_dr)
                 k--;
             if (k == 0)
             {
@@ -470,8 +477,11 @@ void calc_dim(nod* n, int marime = marime_font)
 
     settextstyle(SANS_SERIF_FONT, HORIZ_DIR, marime);
 
-    calc_dim(n->st,marime);
-    calc_dim(n->dr,marime);
+    calc_dim(n->st, marime);
+    if (n->info[0] == '^')
+        calc_dim(n->dr, 1);
+    else
+        calc_dim(n->dr, marime);
 
     settextstyle(SANS_SERIF_FONT, HORIZ_DIR, marime);
 
@@ -499,28 +509,21 @@ void calc_dim(nod* n, int marime = marime_font)
     // 3. impartire (/) - desenat ca fractie
     else if (n->info[0] == '/')
     {
-        int lat_st = n->st->lat;
-        int lat_dr = n->dr->lat;
-
-        n->lat = max(lat_st, lat_dr) + 10;
-        n->inalt = n->st->inalt + n->dr->inalt + 10;
+        // linia de fractie trebuie sa acopere cel mai lat element + padding stanga/dreapta
+        int max_w = max(n->st->lat, n->dr->lat);
+        n->lat = max_w + 2 * FRAC_PADDING;
+        n->inalt = n->st->inalt + n->dr->inalt + 10; // 10px spatiu vertical pt linie
     }
 
     // 4. putere (^)
     else if (n->info[0] == '^')
     {
-        calc_dim(n->st, marime);//baza
-        calc_dim(n->dr, 1);//exp
-
-        // Resetam stilul curent pentru calculele nodului curent
-        settextstyle(SANS_SERIF_FONT, HORIZ_DIR, marime);
-
         int lat_baza = n->st->lat;
         int lat_exp = n->dr->lat;
 
-        n->lat = lat_baza + lat_exp;
+        n->lat = lat_baza + lat_exp + 2; //+2px pt siguranta
         n->inalt = n->st->inalt + (n->dr->inalt / 2);
-        return; 
+        return;
     }
 
     // 5. functii
@@ -536,15 +539,33 @@ void calc_dim(nod* n, int marime = marime_font)
         }
         else if (strcmp(n->info, "sqrt") == 0)
         {
-            n->lat = n->dr->lat + 20;
-            n->inalt = n->dr->inalt + 10;
+            int h_continut = n->dr->inalt;
+
+            // daca avem o fractie, ea poate fi asimetrica (susul mai mare ca josul)
+            // fortam inaltimea sa fie cat cea mai mare parte * 2
+            if (n->dr->info[0] == '/')
+            {
+                int h_sus = n->dr->st->inalt;
+                int h_jos = n->dr->dr->inalt;
+                // 24 este padding-ul vertical al fractiei (12 sus + 12 jos)
+                h_continut = max(h_sus, h_jos) * 2 + 10;
+            }
+
+            n->lat = SQRT_HOOK_W + 15 + n->dr->lat + SQRT_OVERHANG;
+            n->inalt = n->dr->inalt + 20;
         }
-        else
+        else if (strcmp(n->info, "abs") == 0 || strcmp(n->info, "det") == 0)
+        {
+            // Latimea = continut + 12px (cate 6px pentru fiecare bara)
+            n->lat = n->dr->lat + 12;
+            n->inalt = n->dr->inalt; // Inaltimea e aceeasi cu a continutului
+        }
+        else //sin, cos, etc
         {
             int lat_nume = textwidth(n->info);
             int lat_arg = n->dr->lat;
 
-            n->lat = lat_nume + lat_arg + 20;
+            n->lat = lat_nume + textwidth("(") + lat_arg + textwidth(")") + 4;
             n->inalt = max(textheight("A"), n->dr->inalt);
         }
     }
@@ -565,7 +586,7 @@ void calc_dim(nod* n, int marime = marime_font)
             {
                 if (mat[i][j])
                 {
-                    calc_dim(mat[i][j],marime);
+                    calc_dim(mat[i][j], marime);
                     if (mat[i][j]->lat > col_w[j]) col_w[j] = mat[i][j]->lat;
                     if (mat[i][j]->inalt > row_h[i]) row_h[i] = mat[i][j]->inalt;
                 }
@@ -587,7 +608,7 @@ void calc_dim(nod* n, int marime = marime_font)
     }
 }
 
-void deseneaza(nod* n, int x, int y, int marime = marime_font)
+void deseneaza(nod* n, int x, int y, int marime = marime_font, bool arata_par = true)
 {
     if (n == NULL) return;
 
@@ -596,36 +617,51 @@ void deseneaza(nod* n, int x, int y, int marime = marime_font)
 
     // 1. frunza (nr sau variabia)
     if (n->st == NULL && n->dr == NULL)
-        outtextxy(x - n->lat / 2, y - n->lat / 2, n->info);
+        outtextxy(x - n->lat / 2, y - textheight("M") / 2, n->info);
 
     // 2. operatori
     else if (n->info[0] == '+' || n->info[0] == '-' || n->info[0] == '*')
     {
-        outtextxy(x - textwidth(n->info) / 2, y - 5, n->info);
-        
-        //poz fiilor
-        int lat_st = (n->st) ? n->st->lat : 0;
-        int lat_dr = (n->dr) ? n->dr->lat : 0;
+        // 1. aflam dimensiunile exacte
+        int lat_st = n->st ? n->st->lat : 0;
+        int lat_dr = n->dr ? n->dr->lat : 0;
         int lat_op = textwidth(n->info);
 
-        if (n->st)
-            deseneaza(n->st, x - lat_op / 2 - spatiu_op - lat_st / 2, y, marime);
+        // calculam latimea totala reala
+        int total_w = lat_st + lat_op + lat_dr + 2 * spatiu_op;
 
+        // 2. calculam unde incepe desenul in stanga (Start X)
+        // x este centrul geometric primit de la parinte. 
+        // start_x este marginea din stanga a intregului bloc.
+        int start_x = x - total_w / 2;
+
+        // 3. desenam Stanga
+        if (n->st)
+            deseneaza(n->st, start_x + lat_st / 2, y, marime);
+
+        // 4. desenam Operatorul
+        // operatorul nu mai e fix la x, ci depinde de cat de mare e stanga!
+        int x_op = start_x + lat_st + spatiu_op + lat_op / 2;
+        outtextxy(x_op - lat_op / 2, y - textheight("A") / 2, n->info);
+
+        // 5. desenam Dreapta
         if (n->dr)
-            deseneaza(n->dr, x + lat_op / 2 + spatiu_op + lat_dr / 2, y, marime);
+        {
+            //coordonata x pentru fiul drept
+            int x_dr = start_x + lat_st + spatiu_op + lat_op + spatiu_op + lat_dr / 2;
+            deseneaza(n->dr, x_dr, y, marime);
+        }
     }
 
     // 3. fractie
     else if (n->info[0] == '/')
     {
         int lungime = n->lat;
-        line(x - lungime / 2, y + 7, x + lungime / 2, y + 7);//linia de fractie
+        line(x - lungime / 2, y, x + lungime / 2, y);//linia de fractie
 
-        int inalt_st = n->st->inalt;
-        deseneaza(n->st, x, y - inalt_st / 2 - 5, marime);//numarator
-
-        int inalt_dr = n->dr->inalt;
-        deseneaza(n->dr, x, y + inalt_dr / 2 + 5, marime);//numitor
+        //copiii
+        if (n->st) deseneaza(n->st, x, y - n->st->inalt / 2 - 5, marime);
+        if (n->dr) deseneaza(n->dr, x, y + n->dr->inalt / 2 + 5, marime);
     }
 
     // 4. putere
@@ -633,8 +669,11 @@ void deseneaza(nod* n, int x, int y, int marime = marime_font)
     {
         int lat_baza = n->st->lat;
         int lat_exp = n->dr->lat;
-        deseneaza(n->st, x - lat_exp / 2, y + 10, marime);
-        deseneaza(n->dr, x + lat_baza / 2, y - 15, 1);
+
+        //baza putin mai jos
+        deseneaza(n->st, x - lat_exp / 2, y + n->dr->inalt / 4, marime);
+        //exponentul sus dreapta
+        deseneaza(n->dr, x + lat_baza / 2, y - n->st->inalt / 2 + 5, 1);
     }
 
     // 5. functii
@@ -650,36 +689,80 @@ void deseneaza(nod* n, int x, int y, int marime = marime_font)
             line(x_simbol - 5, y - h / 2 + 5, x_simbol + 5, y + h / 2 - 5);//linia
 
             int lat_arg = n->dr->lat;//expresia de dupa semnul de integrala
-            deseneaza(n->dr, x_simbol + 15 + lat_arg / 2, y, marime);
+            deseneaza(n->dr, x_simbol + 15 + lat_arg / 2, y, marime, true);
             // dx la final
             outtextxy(x + n->lat / 2 - textwidth("dx"), y - textheight("d") / 2, "dx");
         }
         else if (strcmp(n->info, "sqrt") == 0)
         {
+            int h_continut = n->dr->inalt;
+
+            // recalculam inaltimea efectiva pentru desenare daca e fractie
+            if (n->dr->info[0] == '/')
+            {
+                int h_sus = n->dr->st->inalt;
+                int h_jos = n->dr->dr->inalt;
+                h_continut = max(h_sus, h_jos) * 2 + 10;
+            }
+
             int w = n->lat;
-            int h = n->inalt;
+            int x_stanga_box = x - w / 2;
 
-            int x_start = x - w / 2;
-            //linia putin deasupra continutului
-            int y_top = y - n->dr->inalt / 2 - 2;
-            
-            line(x_start, y, x_start + 5, y);//codita mica
-            line(x_start + 5, y, x_start + 10, y + n->dr->inalt / 2 + 5);//linia care coboara
-            line(x_start + 10, y + n->dr->inalt / 2 + 5, x_start + 15, y_top);//linia care urca
-            line(x_start + 15, y_top, x + w / 2, y_top);//linie de deeasupra
+            // folosim h_continut calculat asimetric
+            int y_sus_continut = y - h_continut / 2;
+            int y_linie = y_sus_continut - 10; //linia radicalului
 
-            deseneaza(n->dr, x_start + 15 + n->dr->lat / 2, y, marime);//continutul
+            // desenam liniile
+            line(x_stanga_box, y, x_stanga_box + 5, y);
+            line(x_stanga_box + 5, y, x_stanga_box + SQRT_HOOK_W, y + n->dr->inalt / 2 + 2);
+            line(x_stanga_box + SQRT_HOOK_W, y + n->dr->inalt / 2 + 2, x_stanga_box + SQRT_HOOK_W + 5, y_linie);
+            line(x_stanga_box + SQRT_HOOK_W + 5, y_linie, x_stanga_box + w, y_linie);
+
+            int x_centru_continut = x_stanga_box + SQRT_HOOK_W + 15 + (n->dr->lat / 2);
+
+            deseneaza(n->dr, x_centru_continut, y, marime, true);
         }
-        else
+
+        else if (strcmp(n->info, "abs") == 0 || strcmp(n->info, "det") == 0)
+        {
+            int w = n->lat;
+            int h = n->dr->inalt; // Inaltimea continutului
+
+            // Desenam bara stanga |
+            line(x - w / 2, y - h / 2, x - w / 2, y + h / 2);
+
+            // Desenam bara dreapta |
+            line(x + w / 2, y - h / 2, x + w / 2, y + h / 2);
+
+            // Desenam continutul
+            // Daca e 'det', ii spunem matricei sa nu deseneze parantezele [ ]
+            bool afisare_par = true;
+            if (strcmp(n->info, "det") == 0) afisare_par = false;
+
+            deseneaza(n->dr, x, y, marime, afisare_par);
+        }
+
+        else //sin, cos, etc
         {
             int lat_nume = textwidth(n->info);
+            int lat_p_st = textwidth("(");
             int lat_arg = n->dr->lat;
-            int x_start = x - n->lat / 2;
 
-            outtextxy(x_start, y - textheight("A") / 2, n->info);// numele functiei
-            outtextxy(x_start + lat_nume, y - textheight("A") / 2, "(");// desen (
-            deseneaza(n->dr, x_start + lat_nume + 10 + lat_arg / 2, y-7, marime);// arg functiei
-            outtextxy(x_start + lat_nume + 10 + lat_arg + 5, y - textheight("A") / 2, ")");// desen )
+            int total_w = n->lat;
+            int x_start = x - total_w / 2; // marginea stanga
+
+            // numele
+            outtextxy(x_start, y - textheight("A") / 2, n->info);
+
+            // paranteza (
+            outtextxy(x_start + lat_nume, y - textheight("A") / 2, "(");
+
+            // argumentul (centrat intre paranteze)
+            int x_arg = x_start + lat_nume + lat_p_st + lat_arg / 2;
+            deseneaza(n->dr, x_arg, y, marime);
+
+            // paranteza )
+            outtextxy(x_start + lat_nume + lat_p_st + lat_arg, y - textheight("A") / 2, ")");
         }
     }
     // 6. matrice
@@ -691,17 +774,17 @@ void deseneaza(nod* n, int x, int y, int marime = marime_font)
 
         int w = n->lat;
         int h = n->inalt;
-
-        // Desenam parantezele mari
-        // Stanga [
-        line(x - w / 2, y - h / 2, x - w / 2 + 8, y - h / 2);
-        line(x - w / 2, y - h / 2, x - w / 2, y + h / 2);
-        line(x - w / 2, y + h / 2, x - w / 2 + 8, y + h / 2);
-        // Dreapta ]
-        line(x + w / 2, y - h / 2, x + w / 2 - 8, y - h / 2);
-        line(x + w / 2, y - h / 2, x + w / 2, y + h / 2);
-        line(x + w / 2, y + h / 2, x + w / 2 - 8, y + h / 2);
-
+        if (arata_par == true) {
+            // Desenam parantezele mari daca nu e determinant
+            // Stanga [
+            line(x - w / 2, y - h / 2, x - w / 2 + 8, y - h / 2);
+            line(x - w / 2, y - h / 2, x - w / 2, y + h / 2);
+            line(x - w / 2, y + h / 2, x - w / 2 + 8, y + h / 2);
+            // Dreapta ]
+            line(x + w / 2, y - h / 2, x + w / 2 - 8, y - h / 2);
+            line(x + w / 2, y - h / 2, x + w / 2, y + h / 2);
+            line(x + w / 2, y + h / 2, x + w / 2 - 8, y + h / 2);
+        }
         int col_w[max_col] = { 0 };
         int row_h[max_linii] = { 0 };
         for (int i = 0; i < l; i++)
@@ -724,7 +807,7 @@ void deseneaza(nod* n, int x, int y, int marime = marime_font)
                 int crt_x = start_x + col_w[j] / 2;//x curent pentru centrul coloanei
                 if (mat[i][j])
                 {
-                    deseneaza(mat[i][j], crt_x, crt_y, marime);
+                    deseneaza(mat[i][j], crt_x, crt_y, marime, true);
                 }
                 start_x += col_w[j] + 15;
             }
@@ -735,7 +818,7 @@ void deseneaza(nod* n, int x, int y, int marime = marime_font)
 
 int main()
 {
-    char expresie[1001];
+    char expresie[5001];
 
     if (!fin)
     {
@@ -759,7 +842,7 @@ int main()
 
         calc_dim(radacina);
 
-        outtextxy(50, 50, "Formula arata asa: ");
+        outtextxy(50, 50, "Formula arata asaaaaaaa: ");
         deseneaza(radacina, 600, 300);
 
         getch();//tasta pt inchidere
