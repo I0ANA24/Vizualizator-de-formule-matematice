@@ -37,6 +37,11 @@ const int FRAC_PADDING = 8;    // Cati pixeli iese linia de fractie in stanga/dr
 #define max_linii 20
 #define max_col 20
 
+// pentru taste
+#define KEY_LEFT 75
+#define KEY_RIGHT 77
+#define KEY_ESC 27
+
 struct token
 {
     char text[50]; // textul efectiv (sin, 3.14 etc)
@@ -557,8 +562,9 @@ void calc_dim(nod* n, int marime = marime_font)
         {
             int lat_nume = textwidth(n->info);
             int lat_arg = n->dr->lat;
+            int w_par = 7;
 
-            n->lat = lat_nume + textwidth("(") + lat_arg + textwidth(")") + 4;
+            n->lat = lat_nume + w_par + lat_arg + w_par + 4;
             n->inalt = max(textheight("A"), n->dr->inalt);
         }
     }
@@ -718,7 +724,7 @@ void deseneaza(nod* n, int x, int y, int marime = marime_font)
         else //sin, cos, etc
         {
             int lat_nume = textwidth(n->info);
-            int lat_p_st = textwidth("(");
+            int w_par = 7;
             int lat_arg = n->dr->lat;
 
             int total_w = n->lat;
@@ -727,15 +733,27 @@ void deseneaza(nod* n, int x, int y, int marime = marime_font)
             // numele
             outtextxy(x_start, y - textheight("A") / 2, n->info);
 
-            // paranteza (
-            outtextxy(x_start + lat_nume, y - textheight("A") / 2, "(");
+            // calcul dimensiuni paranteza
+            // raza y este jumatate din inaltimea argumentului + putin padding
+            int h_arg = max(textheight("A"), n->dr->inalt);
+            int y_radius = h_arg / 2 + 4;
+            int x_radius = w_par - 2;
 
-            // argumentul (centrat intre paranteze)
-            int x_arg = x_start + lat_nume + lat_p_st + lat_arg / 2;
+            // paranteza (
+            // centrul elipsei se calculeaza astfel incat arcul sa inceapa dupa nume
+            int x_c_st = x_start + lat_nume + x_radius + 1;
+            //arc de la 90 la 270 grade
+            ellipse(x_c_st, y, 90, 270, x_radius, y_radius);
+
+            // argumentul centrat intre paranteze
+            int x_arg = x_start + lat_nume + w_par + lat_arg / 2;
             deseneaza(n->dr, x_arg, y, marime);
 
             // paranteza )
-            outtextxy(x_start + lat_nume + lat_p_st + lat_arg, y - textheight("A") / 2, ")");
+            int x_box_dr = x_start + lat_nume + w_par + lat_arg;
+            int x_c_dr = x_box_dr + (w_par - x_radius);
+            // desenam arc de la 270 la 90 de grade (partea dreapta a elipsei)
+            ellipse(x_c_dr, y, 270, 90, x_radius, y_radius);
         }
     }
     // 6. matrice
@@ -799,7 +817,7 @@ int main()
         return 1;
     }
 
-    fin.getline(expresie, 1001);
+    fin.getline(expresie, 5001);
 
     tokenizare(expresie);
 
@@ -810,15 +828,63 @@ int main()
         afisare_arbore(radacina, 0);
 
         // partea grafica
-        initwindow(1200, 600, "Vizualizator de formule matematice");
+        initwindow(1500, 1000, "Vizualizator de formule matematice");
         settextstyle(SANS_SERIF_FONT, HORIZ_DIR, marime_font);
 
         calc_dim(radacina);
 
-        outtextxy(50, 50, "Formula arata asaaaaaaa: ");
-        deseneaza(radacina, 600, 300);
+        // variabile pentru scroll
+        int offset_x = 0; // cat de mult am miscat formula
+        int step = 300; // viteza de scroll
+        int pagina_activa = 0; // pentru double buffering
+        bool ruleaza = true;
 
-        getch();//tasta pt inchidere
+        while (ruleaza)
+        {
+            // 1. desenam in pagina din "spate" (invizibila momentan)
+            setactivepage(pagina_activa);
+            cleardevice(); // stergem doar pagina din spate
+
+            // 2. desenam textul static (titlul)
+            // il desenam mereu la 50,50 ca sa nu se miste odata cu formula
+            outtextxy(50, 50, "Foloseste sagetile stanga/dreapta pentru scroll si ESC pentru iesire.");
+            outtextxy(50, 70, "Formula arata asa: ");
+
+            // 3. desenam formula
+            deseneaza(radacina, 750 + offset_x, 500);
+
+            // 4. afisam pagina pe care tocmai am desenat-o
+            setvisualpage(pagina_activa);
+
+            // 5. schimbam pagina activa pentru tura urmatoare (0 -> 1 sau 1 -> 0)
+            pagina_activa = 1 - pagina_activa;
+
+            // 6. verificam intrarile de la tastatura
+            if (kbhit())
+            {
+                char c = getch();
+                if (c == 0 || c == -32)
+                {
+                    c = getch(); // pentru caractere speciale (sageti)
+                }
+
+                switch (c)
+                {
+                case KEY_LEFT:
+                    offset_x += step; // mutam formula spre dreapta (scroll stanga)
+                    break;
+                case KEY_RIGHT:
+                    offset_x -= step; // mutam formula spre stanga (scroll dreapta)
+                    break;
+                case KEY_ESC:
+                    ruleaza = false; // oprim bucla
+                    break;
+                }
+            }
+
+            delay(20); // mica pauza pentru a nu folosi procesorul la 100%
+        }
+
         closegraph();
     }
     else
