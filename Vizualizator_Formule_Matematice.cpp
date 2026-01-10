@@ -7,8 +7,8 @@
 #include "winbgim.h"
 using namespace std;
 
-ifstream fin("expresie2.in");
-ofstream fout("expresie2.out");
+ifstream fin("expresie.in");
+ofstream fout("expresie.out");
 
 // definim tipurile de elemente posibile
 #define tip_nedefinit 0
@@ -639,28 +639,28 @@ void deseneaza(nod* n, int x, int y, int marime = marime_font, bool arata_par = 
     if (n == NULL) return;
 
     settextstyle(SANS_SERIF_FONT, HORIZ_DIR, marime);
-    setcolor(WHITE);
 
     // 1. frunza (nr sau variabia)
     if (n->st == NULL && n->dr == NULL) {
         if (strcmp(n->info, "pi") == 0)
         {
+            setcolor(WHITE);
             int w = 12; int h = 12;
             line(x - w / 2, y - h / 2, x + w / 2, y - h / 2); // bara sus
-            pauza_animatie(animat);
             line(x - w / 4, y - h / 2, x - w / 4, y + h / 2); // picior stang
-            pauza_animatie(animat);
             line(x + w / 4, y - h / 2, x + w / 4, y + h / 2); // picior drept
-            pauza_animatie(animat);
         }
         else if (strcmp(n->info, "inf") == 0)
         {
-            circle(x - 5, y + 1, 5);
-            pauza_animatie(animat);
-            circle(x + 5, y + 1, 5);
-            pauza_animatie(animat);
+            setcolor(WHITE);
+            circle(x - 5, y+1, 5);
+            circle(x + 5, y+1, 5);
         }
-        else {
+        else
+        {
+            if (isdigit(n->info[0])) 
+                setcolor(WHITE); 
+            else setcolor(COLOR(176, 196, 222));
             outtextxy(x - n->lat / 2, y - textheight("M") / 2, n->info);
             pauza_animatie(animat);
         }
@@ -687,7 +687,8 @@ void deseneaza(nod* n, int x, int y, int marime = marime_font, bool arata_par = 
             deseneaza(n->st, start_x + lat_st / 2, y, marime, true, animat);
 
         // 4. desenam Operatorul
-        // operatorul nu mai e fix la x, ci depinde de cat de mare e stanga!
+        // operatorul nu mai e fix la x, ci depinde de cat de mare e stanga
+        setcolor(COLOR(224, 191, 184));
         int x_op = start_x + lat_st + spatiu_op + lat_op / 2;
         outtextxy(x_op - lat_op / 2, y - textheight("A") / 2, n->info);
         pauza_animatie(animat);
@@ -705,6 +706,7 @@ void deseneaza(nod* n, int x, int y, int marime = marime_font, bool arata_par = 
     else if (n->info[0] == '/')
     {
         int lungime = n->lat;
+        setcolor(COLOR(225, 104, 221));
         line(x - lungime / 2, y, x + lungime / 2, y); //linia de fractie
         pauza_animatie(animat);
 
@@ -730,6 +732,7 @@ void deseneaza(nod* n, int x, int y, int marime = marime_font, bool arata_par = 
     {
         if (strcmp(n->info, "int") == 0)
         {
+            setcolor(LIGHTMAGENTA);
             int h = n->inalt;
             int x_simbol = x - n->lat / 2 + 5;
 
@@ -741,11 +744,13 @@ void deseneaza(nod* n, int x, int y, int marime = marime_font, bool arata_par = 
             int lat_arg = n->dr->lat;//expresia de dupa semnul de integrala
             deseneaza(n->dr, x_simbol + 15 + lat_arg / 2, y, marime, true, animat);
             // dx la final
+            setcolor(LIGHTMAGENTA); // dx tot roz
             outtextxy(x + n->lat / 2 - textwidth("dx"), y - textheight("d") / 2, "dx");
             pauza_animatie(animat);
         }
         else if (strcmp(n->info, "sqrt") == 0)
         {
+            setcolor(COLOR(255,255,173));
             int h_continut = n->dr->inalt;
 
             // recalculam inaltimea efectiva pentru desenare daca e fractie
@@ -782,6 +787,7 @@ void deseneaza(nod* n, int x, int y, int marime = marime_font, bool arata_par = 
         {
             int w = n->lat;
             int h = n->dr->inalt; // Inaltimea continutului
+            setcolor(LIGHTMAGENTA);
 
             // Desenam bara stanga |
             line(x - w / 2, y - h / 2, x - w / 2, y + h / 2);
@@ -808,6 +814,7 @@ void deseneaza(nod* n, int x, int y, int marime = marime_font, bool arata_par = 
             int total_w = n->lat;
             int x_start = x - total_w / 2; // marginea stanga
 
+            setcolor(COLOR(177,156,217));
             // numele
             outtextxy(x_start, y - textheight("A") / 2, n->info);
             pauza_animatie(animat);
@@ -819,6 +826,7 @@ void deseneaza(nod* n, int x, int y, int marime = marime_font, bool arata_par = 
             int x_radius = w_par - 2;
 
             // paranteza (
+            setcolor(COLOR(177, 156, 217));
             // centrul elipsei se calculeaza astfel incat arcul sa inceapa dupa nume
             int x_c_st = x_start + lat_nume + x_radius + 1;
             //arc de la 90 la 270 grade
@@ -830,6 +838,7 @@ void deseneaza(nod* n, int x, int y, int marime = marime_font, bool arata_par = 
             deseneaza(n->dr, x_arg, y, marime, true, animat);
 
             // paranteza )
+            setcolor(COLOR(177, 156, 217));
             int x_box_dr = x_start + lat_nume + w_par + lat_arg;
             int x_c_dr = x_box_dr + (w_par - x_radius);
             // desenam arc de la 270 la 90 de grade (partea dreapta a elipsei)
@@ -848,6 +857,7 @@ void deseneaza(nod* n, int x, int y, int marime = marime_font, bool arata_par = 
         int h = n->inalt;
         if (arata_par == true) {
             // Desenam parantezele mari daca nu e determinant
+            setcolor(LIGHTMAGENTA);
             // Stanga [
             line(x - w / 2, y - h / 2, x - w / 2 + 8, y - h / 2);
             pauza_animatie(animat);
