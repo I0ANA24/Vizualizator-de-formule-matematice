@@ -135,6 +135,10 @@ void tokenizare(char s[])
 
             char t[50];
             strcpy(t, tokeni[nr_tok].text);
+            if (strcmp(t, "pi") == 0 || strcmp(t, "inf") == 0)
+            {
+                tokeni[nr_tok].tip = tip_variabila;//constante
+            }
 
             // verificam daca e functie cunoscuta
             if (strcmp(t, "sin") == 0 || strcmp(t, "cos") == 0 || strcmp(t, "arccos") == 0 ||
@@ -147,7 +151,7 @@ void tokenizare(char s[])
             }
             else
             {
-                tokeni[nr_tok].tip = tip_variabila;
+                tokeni[nr_tok].tip = tip_variabila;//var normale
             }
             nr_tok++;
         }
@@ -501,8 +505,16 @@ void calc_dim(nod* n, int marime = marime_font)
     // 1. frunza (numar/variabila)
     if (n->st == NULL && n->dr == NULL)
     {
-        n->lat = textwidth(n->info);
-        n->inalt = textheight(n->info);
+        if (strcmp(n->info, "pi") == 0 || strcmp(n->info, "inf") == 0)
+        {
+            n->lat = 20;
+            n->inalt = 20;
+        }
+        else
+        {
+            n->lat = textwidth(n->info);
+            n->inalt = textheight(n->info);
+        }
     }
 
     // 2. operatori simpli (+, -, *)
@@ -630,9 +642,28 @@ void deseneaza(nod* n, int x, int y, int marime = marime_font, bool arata_par = 
     setcolor(WHITE);
 
     // 1. frunza (nr sau variabia)
-    if (n->st == NULL && n->dr == NULL){
-        outtextxy(x - n->lat / 2, y - textheight("M") / 2, n->info);
-        pauza_animatie(animat);
+    if (n->st == NULL && n->dr == NULL) {
+        if (strcmp(n->info, "pi") == 0)
+        {
+            int w = 12; int h = 12;
+            line(x - w / 2, y - h / 2, x + w / 2, y - h / 2); // bara sus
+            pauza_animatie(animat);
+            line(x - w / 4, y - h / 2, x - w / 4, y + h / 2); // picior stang
+            pauza_animatie(animat);
+            line(x + w / 4, y - h / 2, x + w / 4, y + h / 2); // picior drept
+            pauza_animatie(animat);
+        }
+        else if (strcmp(n->info, "inf") == 0)
+        {
+            circle(x - 5, y + 1, 5);
+            pauza_animatie(animat);
+            circle(x + 5, y + 1, 5);
+            pauza_animatie(animat);
+        }
+        else {
+            outtextxy(x - n->lat / 2, y - textheight("M") / 2, n->info);
+            pauza_animatie(animat);
+        }
     }
 
     // 2. operatori
