@@ -75,6 +75,14 @@ nod* nod_nou(token t)
     return n;
 }
 
+void pauza_animatie(bool animat)
+{
+    if (animat)
+    {
+        delay(100);
+    }
+}
+
 bool e_operator(char c)
 {
     if (strchr("+-*/^", c)) return true;
@@ -614,7 +622,7 @@ void calc_dim(nod* n, int marime = marime_font)
     }
 }
 
-void deseneaza(nod* n, int x, int y, int marime = marime_font, bool arata_par = true)
+void deseneaza(nod* n, int x, int y, int marime = marime_font, bool arata_par = true, bool animat = false)
 {
     if (n == NULL) return;
 
@@ -622,8 +630,10 @@ void deseneaza(nod* n, int x, int y, int marime = marime_font, bool arata_par = 
     setcolor(WHITE);
 
     // 1. frunza (nr sau variabia)
-    if (n->st == NULL && n->dr == NULL)
+    if (n->st == NULL && n->dr == NULL){
         outtextxy(x - n->lat / 2, y - textheight("M") / 2, n->info);
+        pauza_animatie(animat);
+    }
 
     // 2. operatori
     else if (n->info[0] == '+' || n->info[0] == '-' || n->info[0] == '*')
@@ -643,19 +653,20 @@ void deseneaza(nod* n, int x, int y, int marime = marime_font, bool arata_par = 
 
         // 3. desenam Stanga
         if (n->st)
-            deseneaza(n->st, start_x + lat_st / 2, y, marime);
+            deseneaza(n->st, start_x + lat_st / 2, y, marime, true, animat);
 
         // 4. desenam Operatorul
         // operatorul nu mai e fix la x, ci depinde de cat de mare e stanga!
         int x_op = start_x + lat_st + spatiu_op + lat_op / 2;
         outtextxy(x_op - lat_op / 2, y - textheight("A") / 2, n->info);
+        pauza_animatie(animat);
 
         // 5. desenam Dreapta
         if (n->dr)
         {
             //coordonata x pentru fiul drept
             int x_dr = start_x + lat_st + spatiu_op + lat_op + spatiu_op + lat_dr / 2;
-            deseneaza(n->dr, x_dr, y, marime);
+            deseneaza(n->dr, x_dr, y, marime, true, animat);
         }
     }
 
@@ -663,11 +674,12 @@ void deseneaza(nod* n, int x, int y, int marime = marime_font, bool arata_par = 
     else if (n->info[0] == '/')
     {
         int lungime = n->lat;
-        line(x - lungime / 2, y, x + lungime / 2, y);//linia de fractie
+        line(x - lungime / 2, y, x + lungime / 2, y); //linia de fractie
+        pauza_animatie(animat);
 
         //copiii
-        if (n->st) deseneaza(n->st, x, y - n->st->inalt / 2 - 5, marime);
-        if (n->dr) deseneaza(n->dr, x, y + n->dr->inalt / 2 + 5, marime);
+        if (n->st) deseneaza(n->st, x, y - n->st->inalt / 2 - 5, marime, true, animat);
+        if (n->dr) deseneaza(n->dr, x, y + n->dr->inalt / 2 + 5, marime, true, animat);
     }
 
     // 4. putere
@@ -677,9 +689,9 @@ void deseneaza(nod* n, int x, int y, int marime = marime_font, bool arata_par = 
         int lat_exp = n->dr->lat;
 
         //baza putin mai jos
-        deseneaza(n->st, x - lat_exp / 2, y + n->dr->inalt / 4, marime);
+        deseneaza(n->st, x - lat_exp / 2, y + n->dr->inalt / 4, marime, true, animat);
         //exponentul sus dreapta
-        deseneaza(n->dr, x + lat_baza / 2, y - n->st->inalt / 2 + 5, 1);
+        deseneaza(n->dr, x + lat_baza / 2, y - n->st->inalt / 2 + 5, 1, true, animat);
     }
 
     // 5. functii
@@ -693,11 +705,13 @@ void deseneaza(nod* n, int x, int y, int marime = marime_font, bool arata_par = 
             arc(x_simbol, y - h / 2 + 5, 0, 180, 5);//carlig sus
             arc(x_simbol, y + h / 2 - 5, 180, 360, 5);//carlig jos
             line(x_simbol - 5, y - h / 2 + 5, x_simbol + 5, y + h / 2 - 5);//linia
+            pauza_animatie(animat);
 
             int lat_arg = n->dr->lat;//expresia de dupa semnul de integrala
-            deseneaza(n->dr, x_simbol + 15 + lat_arg / 2, y, marime, true);
+            deseneaza(n->dr, x_simbol + 15 + lat_arg / 2, y, marime, true, animat);
             // dx la final
             outtextxy(x + n->lat / 2 - textwidth("dx"), y - textheight("d") / 2, "dx");
+            pauza_animatie(animat);
         }
         else if (strcmp(n->info, "sqrt") == 0)
         {
@@ -720,13 +734,17 @@ void deseneaza(nod* n, int x, int y, int marime = marime_font, bool arata_par = 
 
             // desenam liniile
             line(x_stanga_box, y, x_stanga_box + 5, y);
+            pauza_animatie(animat);
             line(x_stanga_box + 5, y, x_stanga_box + SQRT_HOOK_W, y + n->dr->inalt / 2 + 2);
+            pauza_animatie(animat);
             line(x_stanga_box + SQRT_HOOK_W, y + n->dr->inalt / 2 + 2, x_stanga_box + SQRT_HOOK_W + 5, y_linie);
+            pauza_animatie(animat);
             line(x_stanga_box + SQRT_HOOK_W + 5, y_linie, x_stanga_box + w, y_linie);
+            pauza_animatie(animat);
 
             int x_centru_continut = x_stanga_box + SQRT_HOOK_W + 15 + (n->dr->lat / 2);
 
-            deseneaza(n->dr, x_centru_continut, y, marime, true);
+            deseneaza(n->dr, x_centru_continut, y, marime, true, animat);
         }
 
         else if (strcmp(n->info, "abs") == 0 || strcmp(n->info, "det") == 0)
@@ -736,16 +754,18 @@ void deseneaza(nod* n, int x, int y, int marime = marime_font, bool arata_par = 
 
             // Desenam bara stanga |
             line(x - w / 2, y - h / 2, x - w / 2, y + h / 2);
+            pauza_animatie(animat);
 
             // Desenam bara dreapta |
             line(x + w / 2, y - h / 2, x + w / 2, y + h / 2);
+            pauza_animatie(animat);
 
             // Desenam continutul
             // Daca e 'det', ii spunem matricei sa nu deseneze parantezele [ ]
             bool afisare_par = true;
             if (strcmp(n->info, "det") == 0) afisare_par = false;
 
-            deseneaza(n->dr, x, y, marime, afisare_par);
+            deseneaza(n->dr, x, y, marime, afisare_par, animat);
         }
 
         else //sin, cos, etc
@@ -759,6 +779,7 @@ void deseneaza(nod* n, int x, int y, int marime = marime_font, bool arata_par = 
 
             // numele
             outtextxy(x_start, y - textheight("A") / 2, n->info);
+            pauza_animatie(animat);
 
             // calcul dimensiuni paranteza
             // raza y este jumatate din inaltimea argumentului + putin padding
@@ -771,16 +792,18 @@ void deseneaza(nod* n, int x, int y, int marime = marime_font, bool arata_par = 
             int x_c_st = x_start + lat_nume + x_radius + 1;
             //arc de la 90 la 270 grade
             ellipse(x_c_st, y, 90, 270, x_radius, y_radius);
+            pauza_animatie(animat);
 
             // argumentul centrat intre paranteze
             int x_arg = x_start + lat_nume + w_par + lat_arg / 2;
-            deseneaza(n->dr, x_arg, y, marime);
+            deseneaza(n->dr, x_arg, y, marime, true, animat);
 
             // paranteza )
             int x_box_dr = x_start + lat_nume + w_par + lat_arg;
             int x_c_dr = x_box_dr + (w_par - x_radius);
             // desenam arc de la 270 la 90 de grade (partea dreapta a elipsei)
             ellipse(x_c_dr, y, 270, 90, x_radius, y_radius);
+            pauza_animatie(animat);
         }
     }
     // 6. matrice
@@ -796,12 +819,18 @@ void deseneaza(nod* n, int x, int y, int marime = marime_font, bool arata_par = 
             // Desenam parantezele mari daca nu e determinant
             // Stanga [
             line(x - w / 2, y - h / 2, x - w / 2 + 8, y - h / 2);
+            pauza_animatie(animat);
             line(x - w / 2, y - h / 2, x - w / 2, y + h / 2);
+            pauza_animatie(animat);
             line(x - w / 2, y + h / 2, x - w / 2 + 8, y + h / 2);
+            pauza_animatie(animat);
             // Dreapta ]
             line(x + w / 2, y - h / 2, x + w / 2 - 8, y - h / 2);
+            pauza_animatie(animat);
             line(x + w / 2, y - h / 2, x + w / 2, y + h / 2);
+            pauza_animatie(animat);
             line(x + w / 2, y + h / 2, x + w / 2 - 8, y + h / 2);
+            pauza_animatie(animat);
         }
         int col_w[max_col] = { 0 };
         int row_h[max_linii] = { 0 };
@@ -825,7 +854,7 @@ void deseneaza(nod* n, int x, int y, int marime = marime_font, bool arata_par = 
                 int crt_x = start_x + col_w[j] / 2;//x curent pentru centrul coloanei
                 if (mat[i][j])
                 {
-                    deseneaza(mat[i][j], crt_x, crt_y, marime, true);
+                    deseneaza(mat[i][j], crt_x, crt_y, marime, true, animat);
                 }
                 start_x += col_w[j] + 15;
             }
@@ -860,10 +889,19 @@ int main()
 
         calc_dim(radacina);
 
+        // --- inceput animatie ---
+        setactivepage(0);
+        setvisualpage(0);
+        cleardevice();
+        outtextxy(50, 50, "Se genereaza formula...");
+        deseneaza(radacina, 750, 500, marime_font, true, true);
+        outtextxy(50, 70, "Gata! Acum poti folosi sagetile.");
+        // --- sfarsit animatie ---
+
         // variabile pentru scroll
         int offset_x = 0; // cat de mult am miscat formula
         int step = 300; // viteza de scroll
-        int pagina_activa = 0; // pentru double buffering
+        int pagina_activa = 1; // pentru double buffering
         bool ruleaza = true;
 
         while (ruleaza)
